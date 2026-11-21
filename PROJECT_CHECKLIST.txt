@@ -1,0 +1,29 @@
+UniversalAIOMaker - Project Checklist
+====================================
+
+Source project
+--------------
+[x] Program.cs
+[x] MainForm.cs
+[x] ISOProcessor.cs
+[x] BOMRemover.cs
+[x] HexEdit.cs
+[x] InfFileEditor.cs
+[x] UniversalAIOMaker.csproj
+[x] README.md
+
+Build
+-----
+    dotnet build UniversalAIOMaker.csproj -c Release
+
+Runtime requirements
+--------------------
+- 7z.exe for extracting input ISO files
+- xorriso.exe for creating the output ISO
+- Windows tools including DISM, BCDEdit, takeown, and icacls
+- Required boot files and scripts for the selected media types
+
+Do not add generated output, Windows installation ISOs, or third-party tools
+and boot files to a public repository unless their redistribution terms allow it.
+See README.md for project licensing notes and runtime details.
+

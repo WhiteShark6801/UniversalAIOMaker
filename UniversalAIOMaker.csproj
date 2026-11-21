@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <RootNamespace>UniversalAIOMaker</RootNamespace>
+    <AssemblyName>UniversalAIOMaker</AssemblyName>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="MainForm.cs" />
+    <Compile Include="ISOProcessor.cs" />
+    <Compile Include="BOMRemover.cs" />
+    <Compile Include="HexEdit.cs" />
+    <Compile Include="InfFileEditor.cs" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,33 @@
+UniversalAIOMaker - Build Instructions
+=====================================
+
+Requirements
+------------
+- Windows
+- .NET 6 SDK or later with Windows Forms support
+
+Build from the project directory
+--------------------------------
+    dotnet restore UniversalAIOMaker.csproj
+    dotnet build UniversalAIOMaker.csproj -c Release
+
+Run from source
+---------------
+    dotnet run --project UniversalAIOMaker.csproj
+
+Publish a self-contained x64 build
+----------------------------------
+    dotnet publish UniversalAIOMaker.csproj -c Release -r win-x64 --self-contained
+
+The application also needs external tools and boot files at runtime. See the
+"External tools and boot files" section in README.md. Check each component's
+license before including it in a public release.
+
+Project files
+-------------
+- Program.cs: application entry point
+- MainForm.cs: Windows Forms interface
+- ISOProcessor.cs: ISO, boot menu, WIM, and output processing
+- BOMRemover.cs, HexEdit.cs, InfFileEditor.cs: helper utilities
+- UniversalAIOMaker.csproj: Windows Forms project
+
