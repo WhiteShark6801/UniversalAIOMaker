@@ -20,14 +20,6 @@ The GUI itself targets Windows. Building requires the .NET 6 SDK (or a compatibl
 
 Keep `bin/` and `obj/` build output, generated ISOs, user ISO files, and the support assets out of the source repository. Publish the application binaries and the contents of `Required/` as separate release ZIP downloads. Before uploading support assets, check that their licenses permit redistribution and include all required notices. The GRUB4DOS files carry a GNU GPL version 2 notice; retain its license and required notices with any redistribution of those files.
 
-## License
-
-**No license has been selected for this repository yet.** The author reports that the earlier `LegacyAIOMaker2.cmd` script was created by them with AI assistance and was not previously published. The original script contains no explicit license notice. If you are the rights holder for that script and this GUI translation, MIT is a reasonable choice for the project-authored code and documentation. OpenAI's current Terms of Use say that, as between the user and OpenAI and to the extent permitted by law, the user owns the output; that does not establish rights to any third-party material included in prompts or output. Check the terms that applied when the code was generated and review any third-party material before publishing.
-
-MIT is short and permissive: it allows reuse, modification, and redistribution (including commercially) while requiring the copyright and license notice to be retained. Add a root `LICENSE` file with the actual copyright holder's name and year, then replace this paragraph with a license badge/link. Do not use the project-level MIT notice to relicense third-party tools, boot files, or Windows media; each retains its own terms.
-
-Until a license file is added, GitHub's default copyright rules apply. A public repository can be viewed and forked under GitHub's Terms of Service, but that does not grant the general right to reuse, modify, or redistribute the code. This is practical publishing guidance, not legal advice. See [GitHub's licensing guidance](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository), [Choose a License's MIT overview](https://choosealicense.com/licenses/mit/), and the [OpenAI Terms of Use](https://openai.com/policies/terms-of-use/).
-
 ## 🎯 New Features
 
 ### 1. **Graphical User Interface**
