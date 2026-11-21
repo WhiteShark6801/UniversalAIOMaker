@@ -166,7 +166,7 @@ For later UniversalAIOMaker updates, replace the application binaries with the n
    - The `setupldr.bin` offset patch (`0x2060`: `74 03` → `EB 1A`) is applied automatically when Server 2003 with a service pack is detected (NT x86), and always for NT amd64.
    - Optionally enable **"Enable graphics mode"** to add `graphicsmode -1 800 600` to the GRUB4DOS menus.
    - Optionally enable **"Background image (BMP)"**, browse for a `.bmp` file, and it will be copied to the CD root as `background.bmp` with `splashimage background.bmp` added to the menus. This option is only available while graphics mode is enabled.
-   - **Graphics mode** and **Background image (BMP)** features are **experimental and might not as intended!
+   - **Graphics mode** and **Background image (BMP)** features are **experimental** and might not as intended!
 3. Click **"Scan ISOs"**
 
 ### Step 2: Review and Edit (Optional)
