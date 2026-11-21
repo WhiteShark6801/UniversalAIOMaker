@@ -20,10 +20,12 @@ namespace UniversalAIOMaker
         private TextBox txtNT64Path;
         private TextBox txt9xPath;
         private TextBox txtModernPath;
+        private TextBox txtLonghornPath;
         private Button btnBrowseNT32;
         private Button btnBrowseNT64;
         private Button btnBrowse9x;
         private Button btnBrowseModern;
+        private Button btnBrowseLonghorn;
         private CheckBox chkAutoGenerate;
         private CheckBox chkGraphicsMode;
         private CheckBox chkBackgroundImage;
@@ -59,7 +61,7 @@ namespace UniversalAIOMaker
         {
             // Form settings
             this.Text = "UniversalAIOMaker - GUI Edition";
-            this.Size = new Size(900, 650);
+            this.Size = new Size(1000, 700);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -109,12 +111,18 @@ namespace UniversalAIOMaker
             txtModernPath = new TextBox { Location = new Point(180, 138), Size = new Size(550, 23) };
             btnBrowseModern = new Button { Text = "Browse...", Location = new Point(740, 137), Size = new Size(100, 25) };
             btnBrowseModern.Click += (s, e) => BrowseFolder(txtModernPath);
+
+            // Longhorn builds through 4093 only
+            Label lblLonghorn = new Label { Text = "Longhorn (Only for builds up to 4093):", Location = new Point(20, 180), Size = new Size(250, 20) };
+            txtLonghornPath = new TextBox { Location = new Point(280, 178), Size = new Size(450, 23) };
+            btnBrowseLonghorn = new Button { Text = "Browse...", Location = new Point(740, 177), Size = new Size(100, 25) };
+            btnBrowseLonghorn.Click += (s, e) => BrowseFolder(txtLonghornPath);
             
             // Output ISO Path
-            Label lblOutput = new Label { Text = "Output ISO Location:", Location = new Point(20, 180), Size = new Size(150, 20) };
-            TextBox txtOutputPath = new TextBox { Location = new Point(180, 178), Size = new Size(550, 23) };
+            Label lblOutput = new Label { Text = "Output ISO Location:", Location = new Point(20, 220), Size = new Size(150, 20) };
+            TextBox txtOutputPath = new TextBox { Location = new Point(180, 218), Size = new Size(550, 23) };
             txtOutputPath.Tag = "OutputPath"; // Tag for settings
-            Button btnBrowseOutput = new Button { Text = "Browse...", Location = new Point(740, 177), Size = new Size(100, 25) };
+            Button btnBrowseOutput = new Button { Text = "Browse...", Location = new Point(740, 217), Size = new Size(100, 25) };
             btnBrowseOutput.Click += (s, e) => {
                 using (var dialog = new SaveFileDialog())
                 {
@@ -145,7 +153,7 @@ namespace UniversalAIOMaker
             chkAutoGenerate = new CheckBox 
             { 
                 Text = "Auto-generate boot folder names and menu entries", 
-                Location = new Point(20, 220), 
+                Location = new Point(20, 260), 
                 Size = new Size(400, 20),
                 Checked = true
             };
@@ -154,7 +162,7 @@ namespace UniversalAIOMaker
             CheckBox chkDebugMode = new CheckBox
             {
                 Text = "Enable debug mode (verbose command output)",
-                Location = new Point(20, 250),
+                Location = new Point(20, 290),
                 Size = new Size(400, 20),
                 Checked = false
             };
@@ -166,7 +174,7 @@ namespace UniversalAIOMaker
             CheckBox chkPauseBeforeISO = new CheckBox
             {
                 Text = "Pause before creating ISO (for manual modifications)",
-                Location = new Point(20, 280),
+                Location = new Point(20, 320),
                 Size = new Size(400, 20),
                 Checked = false
             };
@@ -178,7 +186,7 @@ namespace UniversalAIOMaker
             chkGraphicsMode = new CheckBox
             {
                 Text = "Enable graphics mode (graphicsmode -1 800 600)",
-                Location = new Point(20, 310),
+                Location = new Point(20, 350),
                 Size = new Size(400, 20),
                 Checked = false
             };
@@ -192,7 +200,7 @@ namespace UniversalAIOMaker
             chkBackgroundImage = new CheckBox
             {
                 Text = "Background image (BMP):",
-                Location = new Point(20, 340),
+                Location = new Point(20, 380),
                 Size = new Size(160, 20),
                 Checked = false
             };
@@ -204,7 +212,7 @@ namespace UniversalAIOMaker
 
             txtBackgroundImage = new TextBox
             {
-                Location = new Point(180, 338),
+                Location = new Point(180, 378),
                 Size = new Size(550, 23),
                 Enabled = false
             };
@@ -215,7 +223,7 @@ namespace UniversalAIOMaker
             btnBrowseBackground = new Button
             {
                 Text = "Browse...",
-                Location = new Point(740, 337),
+                Location = new Point(740, 377),
                 Size = new Size(100, 25),
                 Enabled = false
             };
@@ -251,7 +259,7 @@ namespace UniversalAIOMaker
             btnScanISOs = new Button 
             { 
                 Text = "Scan ISOs", 
-                Location = new Point(370, 380), 
+                Location = new Point(370, 420), 
                 Size = new Size(150, 35),
                 Font = new Font(Font.FontFamily, 10, FontStyle.Bold)
             };
@@ -261,7 +269,7 @@ namespace UniversalAIOMaker
             Label lblInfo = new Label
             {
                 Text = "Select directories containing ISO files and output location, then click 'Scan ISOs' to continue.",
-                Location = new Point(20, 430),
+                Location = new Point(20, 470),
                 Size = new Size(820, 40),
                 ForeColor = Color.DarkBlue
             };
@@ -276,6 +284,7 @@ namespace UniversalAIOMaker
                 lblNT64, txtNT64Path, btnBrowseNT64,
                 lbl9x, txt9xPath, btnBrowse9x,
                 lblModern, txtModernPath, btnBrowseModern,
+                lblLonghorn, txtLonghornPath, btnBrowseLonghorn,
                 lblOutput, txtOutputPath, btnBrowseOutput,
                 chkAutoGenerate, chkDebugMode, chkPauseBeforeISO,
                 chkGraphicsMode,
@@ -292,7 +301,7 @@ namespace UniversalAIOMaker
             dgvISOList = new DataGridView
             {
                 Location = new Point(10, 10),
-                Size = new Size(750, 450),
+                Size = new Size(800, 450),
                 AllowUserToAddRows = false,
                 AllowUserToDeleteRows = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
@@ -301,16 +310,17 @@ namespace UniversalAIOMaker
             };
             
             // Define columns
-            dgvISOList.Columns.Add(new DataGridViewTextBoxColumn { Name = "FileName", HeaderText = "ISO File Name", ReadOnly = true, FillWeight = 30 });
-            dgvISOList.Columns.Add(new DataGridViewTextBoxColumn { Name = "Type", HeaderText = "Type", ReadOnly = true, FillWeight = 15 });
-            dgvISOList.Columns.Add(new DataGridViewTextBoxColumn { Name = "BootFolder", HeaderText = "Boot Folder (4 chars)", FillWeight = 20 });
-            dgvISOList.Columns.Add(new DataGridViewTextBoxColumn { Name = "MenuEntry", HeaderText = "Menu Entry", FillWeight = 35 });
+            dgvISOList.Columns.Add(new DataGridViewTextBoxColumn { Name = "FileName", HeaderText = "ISO File Name", ReadOnly = true, FillWeight = 28 });
+            dgvISOList.Columns.Add(new DataGridViewTextBoxColumn { Name = "Type", HeaderText = "Type", ReadOnly = true, FillWeight = 22 });
+            dgvISOList.Columns.Add(new DataGridViewTextBoxColumn { Name = "BootFolder", HeaderText = "Boot/WinPE Folder (4 chars)", FillWeight = 16 });
+            dgvISOList.Columns.Add(new DataGridViewTextBoxColumn { Name = "SourcesFolder", HeaderText = "Sources Folder (Longhorn, 7 chars)", FillWeight = 22 });
+            dgvISOList.Columns.Add(new DataGridViewTextBoxColumn { Name = "MenuEntry", HeaderText = "Menu Entry", FillWeight = 24 });
             
             // Ordering buttons
             Button btnMoveUp = new Button
             {
                 Text = "Move Up ▲",
-                Location = new Point(770, 10),
+                Location = new Point(825, 10),
                 Size = new Size(90, 30)
             };
             btnMoveUp.Click += BtnMoveUp_Click;
@@ -318,7 +328,7 @@ namespace UniversalAIOMaker
             Button btnMoveDown = new Button
             {
                 Text = "Move Down ▼",
-                Location = new Point(770, 50),
+                Location = new Point(825, 50),
                 Size = new Size(90, 30)
             };
             btnMoveDown.Click += BtnMoveDown_Click;
@@ -336,7 +346,7 @@ namespace UniversalAIOMaker
             btnStartProcess = new Button
             {
                 Text = "Start Processing",
-                Location = new Point(700, 470),
+                Location = new Point(805, 470),
                 Size = new Size(160, 30),
                 Font = new Font(Font.FontFamily, 10, FontStyle.Bold),
                 BackColor = Color.LightGreen
@@ -346,7 +356,7 @@ namespace UniversalAIOMaker
             // Info label
             Label lblInfo = new Label
             {
-                Text = "Review and edit ISO configurations. Use Move Up/Down to reorder. Boot folder names must be exactly 4 characters.",
+                Text = "Edit boot folders (4 chars), Longhorn sources folders (7 chars), and menu labels. Use Move Up/Down to reorder.",
                 Location = new Point(170, 475),
                 Size = new Size(520, 20),
                 ForeColor = Color.DarkBlue
@@ -484,6 +494,23 @@ namespace UniversalAIOMaker
                     isoCount++;
                 }
             }
+
+            // Longhorn (supported builds through 4093)
+            if (!string.IsNullOrEmpty(txtLonghornPath.Text) && Directory.Exists(txtLonghornPath.Text))
+            {
+                var files = Directory.GetFiles(txtLonghornPath.Text, "*.iso");
+                foreach (var file in files)
+                {
+                    isoEntries.Add(new ISOEntry
+                    {
+                        FilePath = file,
+                        FileName = Path.GetFileName(file),
+                        Type = ISOType.Longhorn,
+                        TypeDisplay = "Longhorn (Only for builds up to 4093)"
+                    });
+                    isoCount++;
+                }
+            }
             
             if (isoCount == 0)
             {
@@ -513,6 +540,7 @@ namespace UniversalAIOMaker
             var nt32Counter = 1;
             var nt64Counter = 1;
             var win9xCounter = 1;
+            var longhornCounter = 1;
             
             foreach (var entry in isoEntries)
             {
@@ -539,6 +567,13 @@ namespace UniversalAIOMaker
                     case ISOType.Modern:
                         entry.BootFolder = "Modn";
                         entry.MenuEntry = ExtractMenuName(entry.FileName, "Windows Vista and later");
+                        break;
+
+                    case ISOType.Longhorn:
+                        entry.BootFolder = $"LH{longhornCounter:D2}";
+                        entry.SourcesFolder = $"LHSRC{longhornCounter:D2}";
+                        entry.MenuEntry = ExtractMenuName(entry.FileName, "Windows Longhorn (build up to 4093)");
+                        longhornCounter++;
                         break;
                 }
             }
@@ -580,6 +615,7 @@ namespace UniversalAIOMaker
                     entry.FileName,
                     entry.TypeDisplay,
                     entry.BootFolder,
+                    entry.SourcesFolder,
                     entry.MenuEntry
                 );
                 
@@ -662,6 +698,7 @@ namespace UniversalAIOMaker
                 var entry = (ISOEntry)row.Tag;
                 
                 entry.BootFolder = row.Cells["BootFolder"].Value?.ToString() ?? "";
+                entry.SourcesFolder = row.Cells["SourcesFolder"].Value?.ToString() ?? "";
                 entry.MenuEntry = row.Cells["MenuEntry"].Value?.ToString() ?? "";
             }
             
@@ -704,6 +741,37 @@ namespace UniversalAIOMaker
                     "Duplicate Names", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
+
+            var duplicateSourcesFolders = isoEntries
+                .Where(e => e.Type == ISOType.Longhorn)
+                .GroupBy(e => e.SourcesFolder, StringComparer.OrdinalIgnoreCase)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
+                .ToList();
+            if (duplicateSourcesFolders.Count > 0)
+            {
+                MessageBox.Show("Duplicate Longhorn sources folder names found:\n\n" + string.Join(", ", duplicateSourcesFolders) +
+                    "\n\nEach Longhorn ISO must have a unique sources folder name.",
+                    "Duplicate Names", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            var longhornFolderNames = isoEntries.Where(e => e.Type == ISOType.Longhorn)
+                .SelectMany(e => new[] { e.BootFolder, e.SourcesFolder });
+            var otherBootFolders = isoEntries
+                .Where(e => e.Type == ISOType.NT32 || e.Type == ISOType.NT64)
+                .Select(e => e.BootFolder);
+            var folderConflicts = longhornFolderNames.Concat(otherBootFolders)
+                .GroupBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .Where(group => group.Count() > 1)
+                .Select(group => group.Key)
+                .ToList();
+            if (folderConflicts.Count > 0)
+            {
+                MessageBox.Show("Longhorn boot/sources folders must not conflict with each other or NT boot folders:\n\n" +
+                    string.Join(", ", folderConflicts), "Folder Name Conflict", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
             
             // Confirm and start
             if (MessageBox.Show($"Ready to process {isoEntries.Count} ISO(s).\n\nThis may take a while. Continue?",
@@ -734,6 +802,27 @@ namespace UniversalAIOMaker
                 else if (!System.Text.RegularExpressions.Regex.IsMatch(entry.BootFolder, @"^[a-zA-Z0-9]+$"))
                 {
                     errors.Add($"Row {i + 1}: Boot folder name must contain only letters and numbers");
+                }
+
+                if (entry.Type == ISOType.Longhorn)
+                {
+                    if (string.IsNullOrWhiteSpace(entry.SourcesFolder))
+                    {
+                        errors.Add($"Row {i + 1}: Longhorn sources folder name is empty");
+                    }
+                    else if (entry.SourcesFolder.Length != 7)
+                    {
+                        errors.Add($"Row {i + 1}: Longhorn sources folder name must be exactly 7 characters (current: '{entry.SourcesFolder}')");
+                    }
+                    else if (!System.Text.RegularExpressions.Regex.IsMatch(entry.SourcesFolder, @"^[a-zA-Z0-9]+$"))
+                    {
+                        errors.Add($"Row {i + 1}: Longhorn sources folder name must contain only letters and numbers");
+                    }
+                    else if (entry.SourcesFolder.Equals("sources", StringComparison.OrdinalIgnoreCase) ||
+                        entry.SourcesFolder.Equals("windows", StringComparison.OrdinalIgnoreCase))
+                    {
+                        errors.Add($"Row {i + 1}: Longhorn sources folder name cannot be 'sources' or 'windows' because those paths are reserved in the generated media.");
+                    }
                 }
                 
                 // Validate menu entry
@@ -831,6 +920,9 @@ namespace UniversalAIOMaker
                                 case "ModernPath":
                                     txtModernPath.Text = value;
                                     break;
+                                case "LonghornPath":
+                                    txtLonghornPath.Text = value;
+                                    break;
                                 case "OutputPath":
                                     foreach (Control ctrl in tabSettings.Controls)
                                     {
@@ -913,6 +1005,7 @@ namespace UniversalAIOMaker
                     $"NT64Path={txtNT64Path.Text}",
                     $"Win9xPath={txt9xPath.Text}",
                     $"ModernPath={txtModernPath.Text}",
+                    $"LonghornPath={txtLonghornPath.Text}",
                     $"OutputPath={outputPath}",
                     $"GraphicsMode={(GraphicsMode ? "1" : "0")}",
                     $"UseBackgroundImage={(UseBackgroundImage ? "1" : "0")}",
@@ -935,7 +1028,8 @@ namespace UniversalAIOMaker
         NT32,
         NT64,
         Win9x,
-        Modern
+        Modern,
+        Longhorn
     }
     
     public class ISOEntry
@@ -945,6 +1039,7 @@ namespace UniversalAIOMaker
         public ISOType Type { get; set; }
         public string TypeDisplay { get; set; }
         public string BootFolder { get; set; }
+        public string SourcesFolder { get; set; }
         public string MenuEntry { get; set; }
     }
 }

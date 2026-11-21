@@ -19,6 +19,7 @@ Build
 Runtime requirements
 --------------------
 - 7z.exe for extracting input ISO files
+- lh.bif for Longhorn boot images (include in the separate Required ZIP)
 - xorriso.exe for creating the output ISO
 - Windows tools including DISM, BCDEdit, takeown, and icacls
 - Required boot files and scripts for the selected media types

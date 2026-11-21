@@ -13,6 +13,7 @@ MAIN MENU (Entry Point)
            2 - Windows NT amd64 (5 editions)
            3 - Windows 9x (3 editions)
            4 - Windows Vista and Later
+           5 - Longhorn (Only for builds up to 4093)
 
   ────────────────────────────────────────────────────────────────
   Esc - Boot to first hard drive (0x80) [Default]
@@ -76,6 +77,14 @@ SUB-MENU: Windows NT amd64
            3 - Windows Server 2003 x64 Enterprise SP2
            4 - Windows Server 2003 R2 x64 Standard
            5 - Windows Server 2003 R2 x64 Enterprise
+
+           B - Back to main menu
+
+═══════════════════════════════════════════════════════════════════
+SUB-MENU: Longhorn (Only for builds up to 4093)
+═══════════════════════════════════════════════════════════════════
+
+           1 - Windows Longhorn 4093
 
            B - Back to main menu
 

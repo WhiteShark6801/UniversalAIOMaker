@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -19,6 +20,7 @@ namespace UniversalAIOMaker
         private List<ISOEntry> nt64Entries = new List<ISOEntry>();
         private List<ISOEntry> win9xEntries = new List<ISOEntry>();
         private List<ISOEntry> modernEntries = new List<ISOEntry>();
+        private List<ISOEntry> longhornEntries = new List<ISOEntry>();
 
         // Set when the background image was successfully copied to CDRoot
         private bool backgroundImageReady = false;
@@ -53,6 +55,7 @@ namespace UniversalAIOMaker
                 nt64Entries = entries.Where(e => e.Type == ISOType.NT64).ToList();
                 win9xEntries = entries.Where(e => e.Type == ISOType.Win9x).ToList();
                 modernEntries = entries.Where(e => e.Type == ISOType.Modern).ToList();
+                longhornEntries = entries.Where(e => e.Type == ISOType.Longhorn).ToList();
                 
                 // Process each type
                 if (nt32Entries.Count > 0)
@@ -97,6 +100,18 @@ namespace UniversalAIOMaker
                     ProcessModernISOs(modernEntries);
                     currentProgress += modernEntries.Count;
                     mainForm.UpdateProgress(currentProgress);
+                    mainForm.LogMessage("");
+                }
+
+                if (longhornEntries.Count > 0)
+                {
+                    mainForm.LogMessage($">>> Processing Longhorn ISOs (builds through 4093) ({longhornEntries.Count})");
+                    foreach (var entry in longhornEntries)
+                    {
+                        ProcessLonghornISO(entry);
+                        currentProgress++;
+                        mainForm.UpdateProgress(currentProgress);
+                    }
                     mainForm.LogMessage("");
                 }
                 
@@ -504,6 +519,469 @@ namespace UniversalAIOMaker
             mainForm.LogMessage($"    Completed: {entry.BootFolder}");
         }
         
+        private void ProcessLonghornISO(ISOEntry entry)
+        {
+            mainForm.LogMessage($"  Processing: {entry.FileName}");
+            mainForm.LogMessage($"    WinPE folder: {entry.BootFolder}");
+            mainForm.LogMessage($"    Sources folder: {entry.SourcesFolder}");
+            mainForm.LogMessage($"    Menu entry: {entry.MenuEntry}");
+
+            string cdRootPath = Path.Combine(scriptDirectory, "CDRoot");
+            string tempPath = Path.Combine(Path.GetTempPath(), "UniversalAIOMaker_Longhorn_" + Guid.NewGuid().ToString("N"));
+            string isoExtractPath = Path.Combine(tempPath, "iso");
+            string imageExtractPath = Path.Combine(tempPath, "install-image");
+            Directory.CreateDirectory(isoExtractPath);
+
+            try
+            {
+                RunCommandChecked("7z.exe", $"x \"{entry.FilePath}\" -o\"{isoExtractPath}\" -y");
+
+                string sourceBootPath = FindDirectoryIgnoreCase(isoExtractPath, "boot");
+                string installWim = Directory.GetFiles(isoExtractPath, "install.wim", SearchOption.AllDirectories).FirstOrDefault();
+                string imageExtractRoot = null;
+
+                bool hasLateMarkerInIso = Directory.GetFiles(isoExtractPath, "fs_ext.sys", SearchOption.AllDirectories).Length > 0;
+                bool hasEarlyMarkerInIso = sourceBootPath != null && Directory.GetDirectories(sourceBootPath, "*", SearchOption.AllDirectories)
+                    .Any(path => Path.GetFileName(path).Equals("system32", StringComparison.OrdinalIgnoreCase));
+
+                if (!hasLateMarkerInIso && !hasEarlyMarkerInIso && installWim != null)
+                {
+                    Directory.CreateDirectory(imageExtractPath);
+                    mainForm.LogMessage("    Extracting first install.wim image to inspect Longhorn boot files...");
+                    RunCommandChecked("7z.exe", $"x \"{installWim}\" 1 -o\"{imageExtractPath}\" -y");
+                    imageExtractRoot = FindSingleExtractedImageRoot(imageExtractPath);
+                }
+
+                bool imageHasLateMarker = imageExtractRoot != null &&
+                    Directory.GetFiles(imageExtractRoot, "fs_ext.sys", SearchOption.AllDirectories).Length > 0;
+                string imageBootPath = imageExtractRoot == null ? null : FindDirectoryIgnoreCase(imageExtractRoot, "boot");
+                bool imageHasEarlyMarker = imageBootPath != null && Directory.GetDirectories(imageBootPath, "*", SearchOption.AllDirectories)
+                    .Any(path => Path.GetFileName(path).Equals("system32", StringComparison.OrdinalIgnoreCase));
+                bool isLate40xx = hasLateMarkerInIso || imageHasLateMarker;
+                bool isEarly40xx = !isLate40xx && (hasEarlyMarkerInIso || imageHasEarlyMarker);
+
+                if (isLate40xx && imageExtractRoot == null)
+                {
+                    if (installWim == null)
+                        throw new InvalidOperationException("Late Longhorn ISO has no install.wim to extract.");
+                    Directory.CreateDirectory(imageExtractPath);
+                    mainForm.LogMessage("    Extracting first install.wim image for late Longhorn boot files...");
+                    RunCommandChecked("7z.exe", $"x \"{installWim}\" 1 -o\"{imageExtractPath}\" -y");
+                    imageExtractRoot = FindSingleExtractedImageRoot(imageExtractPath);
+                    imageBootPath = FindDirectoryIgnoreCase(imageExtractRoot, "boot");
+                }
+
+                if (!isEarly40xx && !isLate40xx && sourceBootPath != null)
+                {
+                    throw new InvalidOperationException("Could not classify this Longhorn build: neither fs_ext.sys nor a system32 folder was found.");
+                }
+
+                if (isLate40xx)
+                    sourceBootPath = imageBootPath ?? (imageExtractRoot == null ? null : FindDirectoryIgnoreCase(imageExtractRoot, "boot"));
+                else if (sourceBootPath == null)
+                    sourceBootPath = imageBootPath;
+
+                if (sourceBootPath == null)
+                    throw new InvalidOperationException("Longhorn boot folder was not found in the ISO or the first install.wim image.");
+
+                if (!isEarly40xx && !isLate40xx)
+                    throw new InvalidOperationException("Could not classify this Longhorn build: neither fs_ext.sys nor a system32 folder was found.");
+
+                mainForm.LogMessage(isEarly40xx
+                    ? "    Detected early Longhorn build (system32 folder found)."
+                    : "    Detected late Longhorn build (fs_ext.sys found).");
+
+                string longhornBifTemplate = Path.Combine(scriptDirectory, "lh.bif");
+                if (!File.Exists(longhornBifTemplate))
+                    throw new FileNotFoundException("Longhorn requires lh.bif next to UniversalAIOMaker.exe. Add it to the separate Required support bundle.", longhornBifTemplate);
+
+                string outputBootPath;
+                if (isLate40xx)
+                {
+                    // Rename the boot directory inside the extracted first WIM image before editing its contents.
+                    outputBootPath = Path.Combine(imageExtractRoot, entry.BootFolder);
+                    Directory.Move(sourceBootPath, outputBootPath);
+                    mainForm.LogMessage($"    Renamed the late-build boot folder to {entry.BootFolder} before patching its files.");
+                }
+                else
+                {
+                    outputBootPath = Path.Combine(cdRootPath, entry.BootFolder);
+                    CopyDirectory(sourceBootPath, outputBootPath);
+                }
+
+                string bifFile = Path.Combine(cdRootPath, $"{entry.BootFolder}.bif");
+                File.Copy(longhornBifTemplate, bifFile, true);
+                mainForm.LogMessage("    Patching Longhorn BIF image...");
+                // lh.bif contains the uppercase I386 token; this replacement is intentionally case-sensitive.
+                CallHexEdit(new[] { "-a", "I386", entry.BootFolder, bifFile, "-n" });
+
+                string sourceSourcesPath = FindDirectoryIgnoreCase(isoExtractPath, "sources");
+                if (sourceSourcesPath == null)
+                    throw new InvalidOperationException("Longhorn ISO does not contain the required sources folder.");
+
+                string sourceSetupExe = Directory.GetFiles(sourceSourcesPath, "setup.exe", SearchOption.AllDirectories).FirstOrDefault();
+                if (sourceSetupExe == null)
+                    throw new InvalidOperationException("Longhorn sources folder does not contain setup.exe.");
+
+                string outputSourcesPath = Path.Combine(cdRootPath, entry.SourcesFolder);
+                CopyDirectory(sourceSourcesPath, outputSourcesPath);
+
+                string setupLdrPath = Directory.GetFiles(outputBootPath, "setupldr.bin", SearchOption.AllDirectories).FirstOrDefault();
+                if (setupLdrPath == null)
+                    throw new InvalidOperationException("Longhorn boot folder does not contain setupldr.bin.");
+
+                string rootSetupLdrPath = Path.Combine(outputBootPath, "SETUPLDR.BIN");
+                if (!setupLdrPath.Equals(rootSetupLdrPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Copy(setupLdrPath, rootSetupLdrPath, true);
+                }
+
+                UppercaseFile(outputBootPath, entry.BootFolder, "setupldr.bin", "SETUPLDR.BIN");
+                setupLdrPath = rootSetupLdrPath;
+
+                if (!EnsureLonghornNtdetectUppercase(outputBootPath, entry.BootFolder))
+                    throw new InvalidOperationException("Longhorn boot folder does not contain NTDETECT.COM.");
+
+                PatchLonghornI386Paths(setupLdrPath, entry.BootFolder);
+                PatchLonghornNtdetectPath(setupLdrPath, entry.BootFolder);
+                PatchLonghornTxtsetupPath(setupLdrPath, entry.BootFolder);
+
+                string foundTxtsetupPath = Directory.GetFiles(outputBootPath, "txtsetup.sif", SearchOption.AllDirectories)
+                    .FirstOrDefault(path => Path.GetDirectoryName(path).Equals(outputBootPath, StringComparison.OrdinalIgnoreCase))
+                    ?? Directory.GetFiles(outputBootPath, "txtsetup.sif", SearchOption.AllDirectories).FirstOrDefault();
+                if (foundTxtsetupPath == null)
+                    throw new InvalidOperationException("Longhorn boot folder does not contain txtsetup.sif.");
+
+                string txtsetupPath = Path.Combine(outputBootPath, "TXTSETUP.SIF");
+                if (!foundTxtsetupPath.Equals(txtsetupPath, StringComparison.OrdinalIgnoreCase))
+                    File.Copy(foundTxtsetupPath, Path.Combine(outputBootPath, "txtsetup.sif"), true);
+                UppercaseFile(outputBootPath, entry.BootFolder, "txtsetup.sif", "TXTSETUP.SIF");
+                PatchLonghornBootPath(txtsetupPath, entry.BootFolder);
+
+                var winpeshlFiles = new List<string>();
+                AddWinpeshlFiles(winpeshlFiles, outputBootPath);
+                AddWinpeshlFiles(winpeshlFiles, outputSourcesPath);
+                if (imageExtractRoot != null)
+                    AddWinpeshlFiles(winpeshlFiles, imageExtractRoot);
+
+                int patchedWinpeshlCount = 0;
+                foreach (string winpeshlPath in winpeshlFiles)
+                {
+                    if (PatchWinpeshlSetupPath(winpeshlPath, entry.SourcesFolder))
+                        patchedWinpeshlCount++;
+                }
+
+                if (patchedWinpeshlCount == 0)
+                    throw new InvalidOperationException("Could not find a winpeshl.exe containing the UTF-16LE string 'sources\\setup.exe'.");
+
+                if (isLate40xx && imageExtractRoot != null)
+                {
+                    mainForm.LogMessage("    Copying first install.wim image into CDRoot...");
+                    CopyDirectory(imageExtractRoot, cdRootPath);
+                }
+
+                mainForm.LogMessage($"    Patched {patchedWinpeshlCount} winpeshl.exe file(s) and updated their PE checksums.");
+                mainForm.LogMessage($"    Completed: {entry.BootFolder} / {entry.SourcesFolder}");
+            }
+            finally
+            {
+                if (Directory.Exists(tempPath))
+                {
+                    try { Directory.Delete(tempPath, true); }
+                    catch (Exception ex) { mainForm.LogMessage($"    WARNING: Could not remove Longhorn temporary files: {ex.Message}"); }
+                }
+            }
+        }
+
+        private string FindDirectoryIgnoreCase(string rootPath, string directoryName)
+        {
+            string directChild = Directory.GetDirectories(rootPath)
+                .FirstOrDefault(path => Path.GetFileName(path).Equals(directoryName, StringComparison.OrdinalIgnoreCase));
+            if (directChild != null)
+                return directChild;
+
+            return Directory.GetDirectories(rootPath, "*", SearchOption.AllDirectories)
+                .FirstOrDefault(path => Path.GetFileName(path).Equals(directoryName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private string FindSingleExtractedImageRoot(string imageExtractPath)
+        {
+            // WIM extraction may produce either a direct filesystem root or an image-number subfolder.
+            string numberedRoot = Path.Combine(imageExtractPath, "1");
+            return Directory.Exists(numberedRoot) ? numberedRoot : imageExtractPath;
+        }
+
+        private void AddWinpeshlFiles(List<string> results, string rootPath)
+        {
+            foreach (string file in Directory.GetFiles(rootPath, "winpeshl.exe", SearchOption.AllDirectories))
+            {
+                if (!results.Contains(file, StringComparer.OrdinalIgnoreCase))
+                    results.Add(file);
+            }
+        }
+
+        private void PatchLonghornNtdetectPath(string setupLdrPath, string bootFolder)
+        {
+            byte[] bytes = File.ReadAllBytes(setupLdrPath);
+            byte[] oldBytes = Encoding.ASCII.GetBytes("\\boot\\ntdetect.com");
+            byte[] newBytes = Encoding.ASCII.GetBytes("\\" + bootFolder + "\\ntdetect.com");
+            int replacements = ReplaceBytes(bytes, oldBytes, newBytes, ignoreAsciiCase: true);
+            if (replacements == 0)
+                throw new InvalidOperationException("setupldr.bin did not contain the expected \\boot\\ntdetect.com path.");
+            File.WriteAllBytes(setupLdrPath, bytes);
+            mainForm.LogMessage($"    Updated setupldr.bin ntdetect path ({replacements} occurrence(s)).");
+        }
+
+        private void PatchLonghornTxtsetupPath(string setupLdrPath, string bootFolder)
+        {
+            byte[] bytes = File.ReadAllBytes(setupLdrPath);
+            byte[] oldBytes = Encoding.ASCII.GetBytes("\\boot\\txtsetup.sif");
+            byte[] newBytes = Encoding.ASCII.GetBytes("\\" + bootFolder + "\\txtsetup.sif");
+            int replacements = ReplaceBytes(bytes, oldBytes, newBytes, ignoreAsciiCase: true);
+            if (replacements == 0)
+                throw new InvalidOperationException("setupldr.bin did not contain the expected \\boot\\txtsetup.sif path.");
+
+            File.WriteAllBytes(setupLdrPath, bytes);
+            mainForm.LogMessage($"    Updated setupldr.bin txtsetup.sif path ({replacements} occurrence(s)).");
+        }
+
+        private void PatchLonghornBootPath(string txtsetupPath, string bootFolder)
+        {
+            string expectedValue = "\\" + bootFolder + "\\system32\\";
+            byte[] originalBytes = File.ReadAllBytes(txtsetupPath);
+            byte[] contentBytes = StripTextBom(originalBytes, out int removedBomLength);
+            Encoding encoding = removedBomLength == 2 && originalBytes[0] == 0xFF
+                ? Encoding.Unicode
+                : removedBomLength == 2 ? Encoding.BigEndianUnicode : new UTF8Encoding(false, true);
+            string contents;
+            try
+            {
+                contents = encoding.GetString(contentBytes);
+            }
+            catch (DecoderFallbackException)
+            {
+                encoding = Encoding.Latin1;
+                contents = encoding.GetString(contentBytes);
+            }
+
+            string newline = contents.Contains("\r\n") ? "\r\n" : (contents.Contains("\n") ? "\n" : "\r");
+            string[] lines = contents.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
+            int bootPathLine = Array.FindIndex(lines, line => Regex.IsMatch(line, @"^\s*BootPath\s*=", RegexOptions.IgnoreCase));
+            bool added = bootPathLine < 0;
+            if (!added)
+            {
+                lines[bootPathLine] = "BootPath = " + expectedValue;
+            }
+            else
+            {
+                int setupDataLine = Array.FindIndex(lines, line => line.Trim().Equals("[SetupData]", StringComparison.OrdinalIgnoreCase));
+                if (setupDataLine < 0)
+                {
+                    var appended = lines.ToList();
+                    if (appended.Count > 0 && appended[appended.Count - 1].Length > 0)
+                        appended.Add(string.Empty);
+                    appended.Add("[SetupData]");
+                    appended.Add("BootPath = " + expectedValue);
+                    lines = appended.ToArray();
+                }
+                else
+                {
+                    var inserted = lines.ToList();
+                    inserted.Insert(setupDataLine + 1, "BootPath = " + expectedValue);
+                    lines = inserted.ToArray();
+                }
+            }
+
+            string updatedContents = string.Join(newline, lines);
+            File.WriteAllBytes(txtsetupPath, encoding.GetBytes(updatedContents));
+            string verification = File.ReadAllText(txtsetupPath);
+            bool updated = verification.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
+                .Any(line => Regex.IsMatch(line, @"^\s*BootPath\s*=\s*" + Regex.Escape(expectedValue) + @"\s*$", RegexOptions.IgnoreCase));
+            if (!updated)
+                throw new InvalidOperationException($"Could not set BootPath in {txtsetupPath}.");
+
+            mainForm.LogMessage($"    {(added ? "Added" : "Set")} txtsetup.sif BootPath to {expectedValue}; removed {removedBomLength}-byte BOM when present.");
+        }
+
+        private byte[] StripTextBom(byte[] bytes, out int bomLength)
+        {
+            bomLength = 0;
+            if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
+                bomLength = 3;
+            else if (bytes.Length >= 2 && ((bytes[0] == 0xFF && bytes[1] == 0xFE) || (bytes[0] == 0xFE && bytes[1] == 0xFF)))
+                bomLength = 2;
+
+            return bomLength == 0 ? bytes : bytes.Skip(bomLength).ToArray();
+        }
+
+        private bool EnsureLonghornNtdetectUppercase(string bootFolderPath, string bootFolderName)
+        {
+            string existingPath = Directory.GetFiles(bootFolderPath, "ntdetect.com", SearchOption.AllDirectories).FirstOrDefault();
+            if (existingPath == null)
+                return false;
+
+            string rootLowerPath = Path.Combine(bootFolderPath, "ntdetect.com");
+            if (!Path.GetDirectoryName(existingPath).Equals(bootFolderPath, StringComparison.OrdinalIgnoreCase))
+                File.Copy(existingPath, rootLowerPath, true);
+
+            UppercaseFile(bootFolderPath, bootFolderName, "ntdetect.com", "NTDETECT.COM");
+            string uppercasePath = Path.Combine(bootFolderPath, "NTDETECT.COM");
+            if (!File.Exists(uppercasePath))
+                return false;
+
+            mainForm.LogMessage($"    Ensured {bootFolderName}\\NTDETECT.COM is uppercase.");
+            return true;
+        }
+
+        private void PatchLonghornI386Paths(string setupLdrPath, string bootFolder)
+        {
+            byte[] bytes = File.ReadAllBytes(setupLdrPath);
+            int replacements = ReplaceBytes(
+                bytes,
+                Encoding.ASCII.GetBytes("I386"),
+                Encoding.ASCII.GetBytes(bootFolder),
+                ignoreAsciiCase: true);
+
+            if (replacements != 4)
+                throw new InvalidOperationException($"Expected 4 case-insensitive I386 paths in setupldr.bin, but found and replaced {replacements}.");
+
+            File.WriteAllBytes(setupLdrPath, bytes);
+            mainForm.LogMessage($"    Replaced all {replacements} case-insensitive I386 paths in setupldr.bin.");
+        }
+
+        private bool PatchWinpeshlSetupPath(string winpeshlPath, string sourcesFolder)
+        {
+            byte[] bytes = File.ReadAllBytes(winpeshlPath);
+            byte[] oldBytes = Encoding.Unicode.GetBytes("sources\\setup.exe");
+            byte[] newBytes = Encoding.Unicode.GetBytes(sourcesFolder + "\\setup.exe");
+            int replacements = ReplaceBytes(bytes, oldBytes, newBytes, ignoreAsciiCase: true);
+            if (replacements == 0)
+            {
+                oldBytes = Encoding.ASCII.GetBytes("sources\\setup.exe");
+                newBytes = Encoding.ASCII.GetBytes(sourcesFolder + "\\setup.exe");
+                replacements = ReplaceBytes(bytes, oldBytes, newBytes, ignoreAsciiCase: true);
+                if (replacements > 0)
+                    mainForm.LogMessage("    UTF-16LE path not found; patched winpeshl.exe using the regular ASCII string.");
+            }
+            if (replacements == 0)
+                return false;
+
+            UpdatePortableExecutableChecksum(bytes);
+            File.WriteAllBytes(winpeshlPath, bytes);
+            mainForm.LogMessage($"    Patched winpeshl.exe: {winpeshlPath}");
+            return true;
+        }
+
+        private int ReplaceBytes(byte[] data, byte[] oldBytes, byte[] newBytes, bool ignoreAsciiCase)
+        {
+            if (oldBytes.Length != newBytes.Length)
+                throw new InvalidOperationException("Binary replacement strings must have equal lengths.");
+
+            int count = 0;
+            for (int i = 0; i <= data.Length - oldBytes.Length; i++)
+            {
+                bool match = true;
+                for (int j = 0; j < oldBytes.Length; j++)
+                {
+                    byte actual = data[i + j];
+                    byte expected = oldBytes[j];
+                    if (ignoreAsciiCase && actual <= 0x7F && expected <= 0x7F)
+                    {
+                        actual = (byte)char.ToLowerInvariant((char)actual);
+                        expected = (byte)char.ToLowerInvariant((char)expected);
+                    }
+                    if (actual != expected)
+                    {
+                        match = false;
+                        break;
+                    }
+                }
+
+                if (!match)
+                    continue;
+
+                Buffer.BlockCopy(newBytes, 0, data, i, newBytes.Length);
+                count++;
+                i += oldBytes.Length - 1;
+            }
+            return count;
+        }
+
+        private void UpdatePortableExecutableChecksum(byte[] image)
+        {
+            if (image.Length < 64 || image[0] != (byte)'M' || image[1] != (byte)'Z')
+                throw new InvalidOperationException("winpeshl.exe is not a valid PE executable (missing DOS header).");
+
+            int peOffset = BitConverter.ToInt32(image, 0x3C);
+            if (peOffset < 0 || peOffset > image.Length - 88 || image[peOffset] != (byte)'P' || image[peOffset + 1] != (byte)'E')
+                throw new InvalidOperationException("winpeshl.exe is not a valid PE executable (missing PE header).");
+
+            int checksumOffset = peOffset + 24 + 64;
+            if (checksumOffset + 4 > image.Length)
+                throw new InvalidOperationException("winpeshl.exe has an invalid PE optional header.");
+
+            image[checksumOffset] = 0;
+            image[checksumOffset + 1] = 0;
+            image[checksumOffset + 2] = 0;
+            image[checksumOffset + 3] = 0;
+
+            ulong checksum = 0;
+            for (int i = 0; i < image.Length; i += 2)
+            {
+                if (i == checksumOffset || i == checksumOffset + 2)
+                    continue;
+
+                ushort word = (ushort)image[i];
+                if (i + 1 < image.Length)
+                    word |= (ushort)(image[i + 1] << 8);
+                checksum += word;
+                checksum = (checksum & 0xFFFF) + (checksum >> 16);
+            }
+
+            checksum = (checksum & 0xFFFF) + (checksum >> 16);
+            checksum = (checksum & 0xFFFF) + (checksum >> 16);
+            checksum += (uint)image.Length;
+            Array.Copy(BitConverter.GetBytes((uint)checksum), 0, image, checksumOffset, 4);
+        }
+
+        private void RunCommandChecked(string executable, string arguments)
+        {
+            string executablePath = Path.Combine(scriptDirectory, executable);
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = executablePath,
+                Arguments = arguments,
+                WorkingDirectory = scriptDirectory,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            if (mainForm.DebugMode)
+                mainForm.LogMessage($"[DEBUG] Executing: {executablePath} {arguments}");
+
+            using (var process = Process.Start(startInfo))
+            {
+                var errorLines = new ConcurrentQueue<string>();
+                process.OutputDataReceived += (sender, args) => { };
+                process.ErrorDataReceived += (sender, args) =>
+                {
+                    if (!string.IsNullOrWhiteSpace(args.Data))
+                        errorLines.Enqueue(args.Data);
+                };
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+                process.WaitForExit();
+
+                if (process.ExitCode != 0)
+                {
+                    string details = string.Join(Environment.NewLine, errorLines);
+                    throw new InvalidOperationException($"{executable} failed with exit code {process.ExitCode}: {details}");
+                }
+            }
+        }
+
         private void ProcessModernISOs(List<ISOEntry> entries)
         {
             if (entries.Count == 0)
@@ -1318,8 +1796,9 @@ namespace UniversalAIOMaker
                 Directory.SetCurrentDirectory(scriptDirectory);
                 
                 string xorrisoArgs = $"-as mkisofs -iso-level 3 -full-iso9660-filenames " +
-                                    $"-volid LEGACYAIO -eltorito-boot grldr -no-emul-boot " +
-                                    $"-boot-load-size {bootLoadSize} -boot-info-table " +
+                                    $"-volid UNIVERSALAIO -eltorito-boot grldr -no-emul-boot " +
+                                    $"-boot-load-size {bootLoadSize} " +
+									$"--boot-catalog-hide -rational-rock -no-pad " +
                                     $"-joliet -joliet-long -rock -omit-version-number " +
                                     $"-o \"{outputIso}\" CDRoot";
                 
@@ -1407,6 +1886,12 @@ namespace UniversalAIOMaker
                 string menuModern = Path.Combine(cdRootPath, "menu_modern.lst");
                 CreateModernSubmenu(menuModern);
             }
+
+            if (longhornEntries.Count > 0)
+            {
+                string menuLonghorn = Path.Combine(cdRootPath, "menu_longhorn.lst");
+                CreateLonghornSubmenu(menuLonghorn);
+            }
             
             mainForm.LogMessage("  GRUB4DOS menus created");
         }
@@ -1474,7 +1959,7 @@ namespace UniversalAIOMaker
 
             if (backgroundImageReady)
             {
-                writer.WriteLine("splashimage background.bmp");
+                writer.WriteLine("splashimage /background.bmp");
             }
 
             if (mainForm.GraphicsMode || backgroundImageReady)
@@ -1527,6 +2012,11 @@ namespace UniversalAIOMaker
                     writer.WriteLine($"echo \"           {optionNum} - Windows Vista and Later\"");
                     optionNum++;
                 }
+
+                if (longhornEntries.Count > 0)
+                {
+                    writer.WriteLine($"echo \"           {optionNum} - Longhorn (Only for builds up to 4093)\"");
+                }
                 
                 writer.WriteLine("echo -e \"\\n\"");
                 writer.WriteLine("echo \"  ----------------------------------------------------------------\"");
@@ -1567,7 +2057,49 @@ namespace UniversalAIOMaker
                     writer.WriteLine($"title {optionNum} - Windows Vista and Later\\nLoad Windows Vista+ submenu");
                     writer.WriteLine("configfile /menu_modern.lst");
                     writer.WriteLine();
+                    optionNum++;
                 }
+
+                if (longhornEntries.Count > 0)
+                {
+                    writer.WriteLine($"title {optionNum} - Longhorn (Only for builds up to 4093)\\nLoad Longhorn submenu");
+                    writer.WriteLine("configfile /menu_longhorn.lst");
+                    writer.WriteLine();
+                }
+            }
+        }
+
+        private void CreateLonghornSubmenu(string menuPath)
+        {
+            using (var writer = new StreamWriter(menuPath, false, Encoding.UTF8))
+            {
+                WriteGraphicsSettings(writer);
+                writer.WriteLine("title Longhorn (Only for builds up to 4093)\\nLonghorn Submenu");
+                writer.WriteLine("clear");
+                writer.WriteLine("echo -e \"\\n\"");
+                writer.WriteLine("echo \"  |  Longhorn (Only for builds up to 4093)\"");
+                writer.WriteLine("echo -e \"\\n\"");
+
+                for (int i = 0; i < longhornEntries.Count; i++)
+                    writer.WriteLine($"echo \"           {i + 1} - {longhornEntries[i].MenuEntry}\"");
+
+                writer.WriteLine("echo -e \"\\n\"");
+                writer.WriteLine("echo \"           B - Back to main menu\"");
+                writer.WriteLine("echo -n \"  Choose one: \"");
+                writer.WriteLine("pause --test-key --non-blocking");
+                writer.WriteLine();
+
+                for (int i = 0; i < longhornEntries.Count; i++)
+                {
+                    var entry = longhornEntries[i];
+                    writer.WriteLine($"title {i + 1} - {entry.MenuEntry}\\nBoot {entry.MenuEntry}");
+                    writer.WriteLine($"chainloader /{entry.BootFolder}/SETUPLDR.BIN");
+                    writer.WriteLine("boot");
+                    writer.WriteLine();
+                }
+
+                writer.WriteLine("title B - Back to main menu\\nReturn to main menu");
+                writer.WriteLine("configfile /menu.lst");
             }
         }
         

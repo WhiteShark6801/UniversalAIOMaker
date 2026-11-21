@@ -20,6 +20,14 @@ The GUI itself targets Windows. Building requires the .NET 6 SDK (or a compatibl
 
 Keep `bin/` and `obj/` build output, generated ISOs, user ISO files, and the support assets out of the source repository. Publish the application binaries and the contents of `Required/` as separate release ZIP downloads. Before uploading support assets, check that their licenses permit redistribution and include all required notices. The GRUB4DOS files carry a GNU GPL version 2 notice; retain its license and required notices with any redistribution of those files.
 
+## License
+
+**No license has been selected for this repository yet.** The author reports that the earlier `LegacyAIOMaker2.cmd` script was created by them with AI assistance and was not previously published. The original script contains no explicit license notice. If you are the rights holder for that script and this GUI translation, MIT is a reasonable choice for the project-authored code and documentation. OpenAI's current Terms of Use say that, as between the user and OpenAI and to the extent permitted by law, the user owns the output; that does not establish rights to any third-party material included in prompts or output. Check the terms that applied when the code was generated and review any third-party material before publishing.
+
+MIT is short and permissive: it allows reuse, modification, and redistribution (including commercially) while requiring the copyright and license notice to be retained. Add a root `LICENSE` file with the actual copyright holder's name and year, then replace this paragraph with a license badge/link. Do not use the project-level MIT notice to relicense third-party tools, boot files, or Windows media; each retains its own terms.
+
+Until a license file is added, GitHub's default copyright rules apply. A public repository can be viewed and forked under GitHub's Terms of Service, but that does not grant the general right to reuse, modify, or redistribute the code. This is practical publishing guidance, not legal advice. See [GitHub's licensing guidance](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository), [Choose a License's MIT overview](https://choosealicense.com/licenses/mit/), and the [OpenAI Terms of Use](https://openai.com/policies/terms-of-use/).
+
 ## 🎯 New Features
 
 ### 1. **Graphical User Interface**
@@ -34,6 +42,7 @@ Keep `bin/` and `obj/` build output, generated ISOs, user ISO files, and the sup
      - Windows NT amd64
      - Windows 9x
      - Modern Windows (Vista and later)
+     - Longhorn (Only for builds up to 4093)
    - Folder browser with path persistence
    - Automatic path saving between sessions
 
@@ -50,6 +59,7 @@ Keep `bin/` and `obj/` build output, generated ISOs, user ISO files, and the sup
      2 - Windows NT amd64 (5 editions)
      3 - Windows 9x (3 editions)
      4 - Windows Vista and Later
+     5 - Longhorn (Only for builds up to 4093)
      
      Esc - Boot to first hard drive [Default]
      ```
@@ -72,7 +82,7 @@ Keep `bin/` and `obj/` build output, generated ISOs, user ISO files, and the sup
      ```
    
    - **Navigation Features:**
-     - Press 1-4 in main menu to enter category sub-menus
+     - Press the displayed category number (1-5) in the main menu
      - Press 1-9 in sub-menus to boot selected OS
      - Press '0' to go to next page (if more than 9 entries)
      - Press 'B' to return to main menu from any sub-menu
@@ -110,6 +120,15 @@ Keep `bin/` and `obj/` build output, generated ISOs, user ISO files, and the sup
    - The media `sources` folder also receives `setupN.exe` copies.
    - `boot\BCD` is configured with one entry per ISO pointing at `ramdisk=[boot]\sources\bootN.wim`, with `displaybootmenu Yes` and a 30-second timeout so the Windows Boot Manager always lists the available setups instead of silently booting `boot1.wim`.
    - All `install.wim` indexes are exported into one combined image, then split into `install.swm`/`install2.swm` when larger than 3580 MB.
+
+### 7. **Longhorn (Only for builds up to 4093)**
+   - Longhorn ISOs have a separate input path and category, explicitly limited to builds up to 4093.
+   - Each entry has three editable values: a 4-character WinPE boot folder, a unique 7-character sources folder, and its GRUB4DOS menu label.
+   - Processing extracts the ISO to a temporary folder. A `fs_ext.sys` marker identifies late Longhorn; a `system32` directory under `boot` identifies early Longhorn. Markers in the ISO and, when needed, the first `install.wim` image are checked. The late-build marker takes precedence. If neither marker is found, processing stops with a clear error.
+   - Early builds copy the ISO's `boot` directory. Late builds extract image 1 of `install.wim` with 7-Zip (DISM is not used), take the `boot` directory from that image, and rename the entire directory to the chosen WinPE folder before editing its files. The extracted image contents are then merged into `CDRoot`.
+   - Both build types copy the ISO's `sources` contents to the chosen sources folder. Longhorn boot files `NTDETECT.COM` and `TXTSETUP.SIF` are made uppercase in the WinPE folder.
+   - Longhorn also requires `lh.bif` beside the application executable. The app copies it to `CDRoot/<boot-folder>.bif` and case-sensitively replaces its uppercase `I386` token with the configured boot-folder name.
+   - `setupldr.bin` gets four case-insensitive `I386` → `<boot-folder>` replacements, and its `\boot\ntdetect.com` and `\boot\txtsetup.sif` paths are redirected to the configured boot folder. The boot folder's `TXTSETUP.SIF` has `BootPath` set to `\<boot-folder>\system32\`; any leading text BOM is removed so setup can load it. Longhorn processing does not change `SetupSourcePath`. Matching `winpeshl.exe` files are patched from `sources\setup.exe` to `<sources-folder>\setup.exe`, trying UTF-16LE first and regular ASCII if the UTF-16LE string is absent. Their PE checksums are recalculated after patching.
 
 ## 📁 Project Structure
 
@@ -166,21 +185,22 @@ For later UniversalAIOMaker updates, replace the application binaries with the n
    - The `setupldr.bin` offset patch (`0x2060`: `74 03` → `EB 1A`) is applied automatically when Server 2003 with a service pack is detected (NT x86), and always for NT amd64.
    - Optionally enable **"Enable graphics mode"** to add `graphicsmode -1 800 600` to the GRUB4DOS menus.
    - Optionally enable **"Background image (BMP)"**, browse for a `.bmp` file, and it will be copied to the CD root as `background.bmp` with `splashimage background.bmp` added to the menus. This option is only available while graphics mode is enabled.
-   - **Graphics mode** and **Background image (BMP)** features are **experimental** and might not as intended!
 3. Click **"Scan ISOs"**
 
 ### Step 2: Review and Edit (Optional)
 
 The app switches to the **ISO Configuration** tab showing all found ISOs:
 
-| ISO File Name | Type | Boot Folder | Menu Entry |
-|--------------|------|-------------|------------|
-| winxp_sp3.iso | NT x86 | NT01 | Windows XP Professional SP3 |
-| win2k_pro.iso | NT x86 | NT02 | Windows 2000 Professional |
-| ... | ... | ... | ... |
+| ISO File Name | Type | Boot Folder | Sources Folder | Menu Entry |
+|--------------|------|-------------|----------------|------------|
+| winxp_sp3.iso | NT x86 | NT01 | — | Windows XP Professional SP3 |
+| win2k_pro.iso | NT x86 | NT02 | — | Windows 2000 Professional |
+| longhorn_4093.iso | Longhorn (Only for builds up to 4093) | LH01 | LHSRC01 | Windows Longhorn 4093 |
+| ... | ... | ... | ... | ... |
 
 **You can:**
 - Edit boot folder names (must be exactly 4 alphanumeric characters)
+- For Longhorn, edit the sources folder name (exactly 7 alphanumeric characters)
 - Edit menu entry text (shown in boot menu)
 - Click "Auto-Generate Names" to regenerate all names
 - Validation ensures no duplicates and correct format
@@ -231,6 +251,7 @@ NT32Path=C:\ISOs\WindowsNT_x86
 NT64Path=C:\ISOs\WindowsNT_x64
 Win9xPath=C:\ISOs\Windows9x
 ModernPath=C:\ISOs\WindowsModern
+LonghornPath=C:\ISOs\WindowsLonghorn_UpTo4093
 OutputPath=C:\Output\UniversalAIOMaker_Media.iso
 GraphicsMode=0
 UseBackgroundImage=0
@@ -247,7 +268,7 @@ The boot menu uses a hierarchical navigation system:
 - Shows only categories that have ISOs
 - Displays count of editions per category
 - Example: "Windows NT x86 (15 editions)"
-- 4 possible categories maximum
+- Longhorn appears after Windows Vista and Later when Longhorn ISOs are included
 
 ### Sub-Menus
 - Each category opens its own sub-menu
@@ -275,7 +296,10 @@ Main Menu (30s timeout → hard drive)
     │   ├─ 1-9: Boot OS
     │   └─ B: Back to Main
     │
-    └─ 4: Vista/Later → Boot directly
+    ├─ 4: Vista/Later → Boot directly
+    └─ 5: Longhorn (Only for builds up to 4093) → Sub-Menu
+        ├─ 1-N: Boot selected build
+        └─ B: Back to Main
 ```
 
 ### Multi-Page Example
@@ -301,6 +325,12 @@ Boot Folder Names:
 - ❌ Special characters not allowed
 - ❌ Spaces not allowed
 
+Longhorn Sources Folder Names:
+- Exactly 7 alphanumeric characters
+- Unique across Longhorn entries
+- Must not match a Longhorn boot folder or an NT boot folder
+- Do not use the reserved names `sources` or `windows`
+
 Examples:
 - ✅ `NT01`, `N003`, `W9x1`, `WXPS`, `2K03`
 - ❌ `NT1` (too short), `WINXP` (too long), `NT-1` (special char)
@@ -309,7 +339,9 @@ Examples:
 
 The separate `Required/` support bundle contains the runtime tools and boot assets. Its current contents include `7z.exe` and `7z.dll`, `xorriso.exe` and its companion MSYS DLLs, `oscdimg.exe`, boot images (`nt_32.bif`, `nt_64.bif`, `Win95.img`, `Win98.img`, `WinME.img`, and `etfsboot.com`), a root `grldr`, and the `grub4dos/` directory and its subdirectories. Preserve this directory structure when creating or extracting the ZIP. The current source creates ISOs with `xorriso.exe`; `oscdimg.exe` is included in the support bundle but is not currently invoked by the source.
 
-Windows supplies the other system tools the app invokes, including DISM, BCDEdit, `takeown`, `icacls`, and `cmd.exe`; they are included in `UniversalAIOMaker-Required.zip`. The support bundle can be reused for later application versions unless release notes announce that its files or layout have changed.
+Longhorn processing additionally requires `lh.bif` next to `UniversalAIOMaker.exe`; include it in `UniversalAIOMaker-Required.zip`. The current `Required/` folder in this source checkout does not contain `lh.bif` yet, so Longhorn processing will report a clear missing-file error until it is added to the support bundle.
+
+Windows supplies the other system tools the app invokes, including DISM, BCDEdit, `takeown`, `icacls`, and `cmd.exe`; they are not part of `UniversalAIOMaker-Required.zip`. The support bundle can be reused for later application versions unless release notes announce that its files or layout have changed.
 
 ## 🆚 Comparison: Console vs GUI
 
