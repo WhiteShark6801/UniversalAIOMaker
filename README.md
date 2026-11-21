@@ -309,7 +309,7 @@ Examples:
 
 The separate `Required/` support bundle contains the runtime tools and boot assets. Its current contents include `7z.exe` and `7z.dll`, `xorriso.exe` and its companion MSYS DLLs, `oscdimg.exe`, boot images (`nt_32.bif`, `nt_64.bif`, `Win95.img`, `Win98.img`, `WinME.img`, and `etfsboot.com`), a root `grldr`, and the `grub4dos/` directory and its subdirectories. Preserve this directory structure when creating or extracting the ZIP. The current source creates ISOs with `xorriso.exe`; `oscdimg.exe` is included in the support bundle but is not currently invoked by the source.
 
-Windows supplies the other system tools the app invokes, including DISM, BCDEdit, `takeown`, `icacls`, and `cmd.exe`; they are not part of `UniversalAIOMaker-Required.zip`. The support bundle can be reused for later application versions unless release notes announce that its files or layout have changed.
+Windows supplies the other system tools the app invokes, including DISM, BCDEdit, `takeown`, `icacls`, and `cmd.exe`; they are included in `UniversalAIOMaker-Required.zip`. The support bundle can be reused for later application versions unless release notes announce that its files or layout have changed.
 
 ## 🆚 Comparison: Console vs GUI
 
